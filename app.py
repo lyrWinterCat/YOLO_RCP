@@ -8,8 +8,7 @@ from ultralytics import YOLO
 # ----------------------------
 # 1. YOLO 모델 로드
 # ----------------------------
-# 사용자의 커스텀 학습된 YOLOv8 모델 경로를 지정합니다.
-model = YOLO("model/best.pt")  # 필요 시 경로 수정
+model = YOLO("models/best.pt")
 
 # ----------------------------
 # 2. AI 판단 함수 (난이도 반영)
@@ -18,23 +17,23 @@ def get_ai_move(user_move, difficulty="hard"):
     counter = {'rock': 'paper', 'paper': 'scissors', 'scissors': 'rock'}
     if difficulty == "hard":
         return counter.get(user_move, "foul")
-    else:  # 쉬움 모드: 75% 확률로 AI가 지기도 함
+    else:
         options = [counter[user_move]] * 3 + [user_move]
         return random.choice(options) if user_move in counter else "foul"
 
 # ----------------------------
-# 3. 손 이미지 불러오기 (assets 폴더)
+# 3. 손 이미지 불러오기
 # ----------------------------
 def load_hand_image(hand_type):
-    path = f"assets/{hand_type}.png"
+    path = f"assets/images/{hand_type}.png"
     if os.path.exists(path):
         img = cv2.imread(path)
         return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     else:
-        return np.zeros((224, 224, 3), dtype=np.uint8)  # 빈 이미지 리턴
+        return np.zeros((224, 224, 3), dtype=np.uint8)
 
 # ----------------------------
-# 4. 상태 변수 관리용 딕셔너리
+# 4. 상태 변수
 # ----------------------------
 state = {
     "mode": "normal",
@@ -46,16 +45,19 @@ state = {
 }
 
 # ----------------------------
-# 5. 게임 플레이 함수
+# 5. 게임 로직
 # ----------------------------
 def play_game(frame, mode, difficulty):
+    if frame is None:
+        default_img = load_hand_image("yolo_c")
+        return default_img, "카메라를 켜주세요!", "", state["rounds_left"], ""
+
     results = model.predict(frame, conf=0.5)
     user_move = "none"
     ai_move = "none"
     outcome = ""
 
-    # YOLO 결과 해석
-    if results and results[0].boxes:
+    if results and len(results[0].boxes) > 0:
         label_id = int(results[0].boxes.cls[0])
         user_move = results[0].names[label_id]
         ai_move = get_ai_move(user_move, difficulty)
@@ -63,7 +65,6 @@ def play_game(frame, mode, difficulty):
         user_move = "foul"
         outcome = "❌ 손이 인식되지 않았어요. 다시 시도해주세요."
 
-    # 승패 판단
     if user_move in ['rock', 'paper', 'scissors']:
         if ai_move == {'rock': 'paper', 'paper': 'scissors', 'scissors': 'rock'}[user_move]:
             outcome = "😈 AI가 이겼어요!"
@@ -78,11 +79,9 @@ def play_game(frame, mode, difficulty):
     elif user_move == "foul":
         outcome = "❌ 반칙입니다! 손을 정확히 보여주세요."
 
-    # 챌린지 모드라면 남은 라운드 감소
     if mode == "challenge":
         state["rounds_left"] -= 1
 
-    # 결과 이미지 로드 및 상태 출력
     hand_img = load_hand_image(ai_move)
     score = f"현재 전적: {state['wins']}승 / {state['losses']}패"
     streak_msg = "🔥 10연승!" if state["streak"] >= 10 else "💀 10연패..." if state["streak"] <= -10 else ""
@@ -99,34 +98,63 @@ def reset_game(mode_val, diff_val):
     state["losses"] = 0
     state["rounds_left"] = 5 if mode_val == "challenge" else 99
     state["streak"] = 0
-    return "카메라 앞에 손을 보여주세요!", "", state["rounds_left"], ""
+    default_img = load_hand_image("yolo_c")
+    return default_img, "카메라 앞에 손을 보여주세요!", "", state["rounds_left"], ""
 
 # ----------------------------
-# 7. Gradio UI 구성
+# 7. Gradio 인터페이스 구성
 # ----------------------------
-with gr.Blocks() as demo:
-    gr.Markdown("# 🤖 YOLO 가위바위보 챌린지")
-    gr.Markdown("게임 모드와 난이도를 선택한 뒤 게임을 시작하세요.")
+default_ai_img = load_hand_image("yolo_c")
+
+with gr.Blocks(title="절대 이길 수 없는 가위바위보 게임") as demo:
+    gr.Markdown("# 💻 절대 이길 수 없는 가위바위보 게임")
+
+    with gr.Row():
+        webcam = gr.Image(sources=["webcam"], streaming=True, label="게임 화면", width=400, height=400)
+        output_img = gr.Image(value=default_ai_img, label="AI의 손", width=400, height=400)
+
+    with gr.Row():
+        with gr.Column():
+            gr.Markdown("""
+            ## 🎮 게임 방법
+            0. 웹캠을 켜고 카메라를 연결해주세요.
+            1. 게임 모드와 난이도를 선택하세요.  
+            2. '게임 시작' 버튼을 클릭하세요.  
+            3. 웹캠에 손을 보여주세요.  
+            4. 카운트다운이 끝나면 가위, 바위, 보 중 하나를 내세요.  
+            5. AI는 항상 이기는 손 모양을 냅니다 (어려움 모드).
+            """)
+        with gr.Column():
+            gr.Markdown("""
+            ## 🕹️ 모드 설명
+            - **Normal**: 제한 없이 계속 플레이  
+            - **Challenge**: 10라운드 후 결과 요약
+
+            ## 🎯 난이도 설명
+            - **Easy**: AI가 가끔 실수를 합니다   
+            - **Hard**: AI가 항상 이깁니다
+            """)
 
     mode = gr.Radio(["normal", "challenge"], label="게임 모드", value="normal")
     difficulty = gr.Radio(["easy", "hard"], label="난이도", value="hard")
     start_btn = gr.Button("게임 시작")
 
-    webcam = gr.Image(source="webcam", streaming=True)
-    output_img = gr.Image(label="AI의 손")
     output_text = gr.Textbox(label="결과 메시지")
     score_text = gr.Textbox(label="전적")
     rounds_left = gr.Number(label="남은 라운드", value=5)
     streak_text = gr.Textbox(label="이벤트")
 
-    # 게임 초기화
-    start_btn.click(fn=reset_game, inputs=[mode, difficulty],
-                    outputs=[output_text, score_text, rounds_left, streak_text])
+    start_btn.click(
+        fn=reset_game,
+        inputs=[mode, difficulty],
+        outputs=[output_img, output_text, score_text, rounds_left, streak_text]
+    )
 
-    # 웹캠 입력 시 게임 진행
-    webcam.change(fn=lambda frame: play_game(frame, state["mode"], state["difficulty"]),
-                  inputs=webcam,
-                  outputs=[output_img, output_text, score_text, rounds_left, streak_text])
+    webcam.change(
+        fn=lambda frame: play_game(frame, state["mode"], state["difficulty"]),
+        inputs=webcam,
+        outputs=[output_img, output_text, score_text, rounds_left, streak_text]
+    )
 
 # ----------------------------
 # 8. 실행

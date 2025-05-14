@@ -5,7 +5,7 @@ from ultralytics import YOLO
 # ----------------------------
 # 1. YOLO 모델 로드
 # ----------------------------
-model = YOLO("model/best.pt")  # YOLOv8 사용자 모델 경로
+model = YOLO("models/best.pt")  # YOLOv8 사용자 모델 경로
 
 # ----------------------------
 # 2. AI 판단 함수
@@ -43,15 +43,15 @@ while True:
         cv2.putText(frame, f"Computer: {ai_move}", (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 2)
         print(f"User: {user_move}  →  Computer: {ai_move}")
     else:
-        cv2.putText(frame, f"손을 인식 중...", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (100, 100, 100), 2)
+        cv2.putText(frame, f"Recognizing your hand. . .", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (100, 100, 100), 2)
 
     # 화면 출력
-    cv2.imshow("YOLO RPS Demo", frame)
+    cv2.imshow("YOLO RSP Demo", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
 cv2.destroyAllWindows()
-print("\n[데모 종료]")
+print("\n[End Demo]")
 # ----------------------------
