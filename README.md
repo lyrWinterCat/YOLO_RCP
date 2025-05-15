@@ -7,7 +7,7 @@ YOLOv11를 활용한 실시간 가위바위보 인식 게임입니다. 웹캠을
 ## 🔗 데모 링크
 
 - 🤗 [Hugging Face Space에서 체험하기](https://huggingface.co/spaces/WinterCatS2/YOLO_RSP)
-- 🎥 [YouTube 시연 영상 보기](https://youtu.be/1Y2Me3ZtWME)
+- 🎥 [YouTube 시연 영상 보기](https://youtu.be/5S1YVSPta5w)
 
 ---
 
