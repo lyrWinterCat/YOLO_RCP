@@ -26,7 +26,7 @@ def put_korean_text(img, text, position, font_size=30, color=(0, 255, 0)):
     return np.array(img_pil)
 
 # 모델 로드 - YOLO v11 사용
-model = YOLO("models/best3.pt")
+model = YOLO("models/best4.pt")
 print("모델 로드 완료")
 
 # 컴퓨터 손 이미지 미리 로드 (성능 향상)
@@ -58,6 +58,8 @@ load_success = load_hand_images()
 
 # AI 판단 함수 - YOLO v11의 높은 정확도를 활용
 def get_ai_move(user_move):
+    if user_move == "justhand":
+        return "win"  # justhand는 무조건 컴퓨터 승리
     counter = {'rock': 'paper', 'paper': 'scissors', 'scissors': 'rock'}
     return counter.get(user_move.lower(), "none")
 
@@ -71,11 +73,14 @@ label_map = {
     "scissors": "scissors",
     "0": "rock",
     "1": "paper",
-    "2": "scissors"
+    "2": "scissors",
+    "3": "justhand"
 }
 
 # 게임 결과 판정 함수
 def determine_winner(user_move, ai_move):
+    if user_move == "justhand":
+        return "컴퓨터 승리! (유효하지 않은 손 모양)"
     if user_move == ai_move:
         return "무승부!"
     elif (user_move == "rock" and ai_move == "scissors") or \
@@ -137,19 +142,32 @@ def process_webcam(webcam_image):
         user_move = label_map.get(class_name, class_name.lower())
         
         # 사용자 움직임에 대응하는 AI 움직임 선택
-        ai_move = get_ai_move(user_move)
+        if user_move == "justhand":
+            # 화면에 텍스트 출력
+            frame = put_korean_text(frame, f"사용자: {user_move} ({conf:.2f})", (30, 40), font_size=30, color=(0, 255, 0))
+            frame = put_korean_text(frame, "컴퓨터: 승리!", (30, 80), font_size=30, color=(0, 0, 255))
+            
+            # 판정패 메시지
+            result_text = "판정패! (허용되지 않는 손 모양)"
+            frame = put_korean_text(frame, result_text, (30, 120), font_size=30, color=(255, 0, 0))
+            result_text = f"사용자: {user_move} ({conf:.2f}) vs 컴퓨터: 승리 - {result_text}"
+            
+            # 컴퓨터 손 이미지는 yolo_c.png 사용
+            computer_hand_img = hands["default"]
+        else:
+            ai_move = get_ai_move(user_move)
         
         # 화면에 텍스트 출력
-        frame = put_korean_text(frame, f"사용자: {user_move} ({conf:.2f})", (30, 40), font_size=30, color=(0, 255, 0))
-        frame = put_korean_text(frame, f"컴퓨터: {ai_move}", (30, 80), font_size=30, color=(0, 0, 255))
+            frame = put_korean_text(frame, f"사용자: {user_move} ({conf:.2f})", (30, 40), font_size=30, color=(0, 255, 0))
+            frame = put_korean_text(frame, f"컴퓨터: {ai_move}", (30, 80), font_size=30, color=(0, 0, 255))
         
         # 승패 결정
-        result_text = determine_winner(user_move, ai_move)
-        frame = put_korean_text(frame, result_text, (30, 120), font_size=30, color=(255, 165, 0))
-        result_text = f"사용자: {user_move} ({conf:.2f}) vs 컴퓨터: {ai_move} - {result_text}"
+            result_text = determine_winner(user_move, ai_move)
+            frame = put_korean_text(frame, result_text, (30, 120), font_size=30, color=(255, 165, 0))
+            result_text = f"사용자: {user_move} ({conf:.2f}) vs 컴퓨터: {ai_move} - {result_text}"
         
         # 컴퓨터 손 이미지 선택
-        computer_hand_img = hands[ai_move] if ai_move in hands else hands["default"]
+            computer_hand_img = hands[ai_move] if ai_move in hands else hands["default"]
     
     return frame, computer_hand_img, result_text
 

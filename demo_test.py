@@ -25,11 +25,13 @@ def put_korean_text(img, text, position, font_size=30, color=(0, 255, 0)):
     return np.array(img_pil)
 
 # YOLO v11 모델 로드 - 향상된 설정
-model = YOLO("models/best3.pt")
+model = YOLO("models/best4.pt")
 print("YOLO v11 모델 로드 완료")
 
 # AI 판단 함수
 def get_ai_move(user_move):
+    if user_move == "justhand":
+        return "win" # justhand는 무조건 컴퓨터 승리
     counter = {'rock': 'paper', 'paper': 'scissors', 'scissors': 'rock'}
     return counter.get(user_move.lower(), "none")
 
@@ -43,7 +45,8 @@ label_map = {
     "scissors": "scissors",
     "0": "rock",
     "1": "paper",
-    "2": "scissors"
+    "2": "scissors",
+    "3": "justhand"
 }
 
 # 메인 함수
@@ -105,15 +108,30 @@ def main():
             # 클래스 이름 매핑
             user_move = label_map.get(class_name, class_name.lower())
             ai_move = get_ai_move(user_move)
-            
-            # 화면에 텍스트 출력
-            annotated_frame = put_korean_text(annotated_frame, f"사용자: {user_move} ({conf:.2f})", (30, 40), font_size=30, color=(0, 255, 0))
-            annotated_frame = put_korean_text(annotated_frame, f"컴퓨터: {ai_move}", (30, 80), font_size=30, color=(0, 0, 255))
-            
-            # 승패 결정 추가
-            result_text = determine_winner(user_move, ai_move)
+
+            if user_move == "justhand":
+            # justhand일 경우 특별 메시지 표시
+                annotated_frame = put_korean_text(annotated_frame, "컴퓨터: 승리!", (30, 80), font_size=30, color=(0, 0, 255))
+                result_text = "판정패! (허용되지 않는 손 모양)"
+            else:
+                # 일반적인 가위바위보 경우
+                annotated_frame = put_korean_text(annotated_frame, f"컴퓨터: {ai_move}", (30, 80), font_size=30, color=(0, 0, 255))
+                result_text = determine_winner(user_move, ai_move)
+
             annotated_frame = put_korean_text(annotated_frame, result_text, (30, 120), font_size=30, color=(255, 165, 0))
             print(f"사용자: {user_move} ({conf:.2f})  →  컴퓨터: {ai_move}  →  {result_text}")
+
+
+
+            
+            # # 화면에 텍스트 출력
+            # annotated_frame = put_korean_text(annotated_frame, f"사용자: {user_move} ({conf:.2f})", (30, 40), font_size=30, color=(0, 255, 0))
+            # annotated_frame = put_korean_text(annotated_frame, f"컴퓨터: {ai_move}", (30, 80), font_size=30, color=(0, 0, 255))
+            
+            # # 승패 결정 추가
+            # result_text = determine_winner(user_move, ai_move)
+            # annotated_frame = put_korean_text(annotated_frame, result_text, (30, 120), font_size=30, color=(255, 165, 0))
+            # print(f"사용자: {user_move} ({conf:.2f})  →  컴퓨터: {ai_move}  →  {result_text}")
         
         # 화면 출력
         cv2.imshow("YOLO v11 RSP Demo", annotated_frame)
@@ -127,6 +145,8 @@ def main():
 
 # 승패 결정 함수 추가
 def determine_winner(user_move, ai_move):
+    if user_move == "justhand":
+        return "컴퓨터 승리!(허용되지 않은 손 모양)"
     if user_move == ai_move:
         return "무승부!"
     elif (user_move == "rock" and ai_move == "scissors") or \
