@@ -25,11 +25,38 @@ def put_korean_text(img, text, position, font_size=30, color=(0, 255, 0)):
     draw.text(position, text, font=font, fill=color)
     return np.array(img_pil)
 
-# 모델 로드
+# 모델 로드 - YOLO v11 사용
 model = YOLO("models/best3.pt")
 print("모델 로드 완료")
 
-# AI 판단 함수
+# 컴퓨터 손 이미지 미리 로드 (성능 향상)
+hands = {}
+
+def load_hand_images():
+    global hands
+    try:
+        # PIL을 사용하여 이미지 로드 (RGB 형식으로 올바르게 로드)
+        hands["rock"] = Image.open("assets/images/rock.png").convert("RGBA")
+        hands["paper"] = Image.open("assets/images/paper.png").convert("RGBA")
+        hands["scissors"] = Image.open("assets/images/scissors.png").convert("RGBA")
+        hands["default"] = Image.open("assets/images/yolo_c.png").convert("RGBA")
+        hands["none"] = Image.open("assets/images/none.png").convert("RGBA")
+        
+        # 이미지 크기 조정
+        for key in hands:
+            if hands[key] is not None:
+                hands[key] = hands[key].resize((400, 400))
+                # PIL 이미지를 numpy 배열로 변환
+                hands[key] = np.array(hands[key])
+        return True
+    except Exception as e:
+        print(f"손 이미지 로드 중 오류: {e}")
+        return False
+
+# 시작 시 이미지 로드
+load_success = load_hand_images()
+
+# AI 판단 함수 - YOLO v11의 높은 정확도를 활용
 def get_ai_move(user_move):
     counter = {'rock': 'paper', 'paper': 'scissors', 'scissors': 'rock'}
     return counter.get(user_move.lower(), "none")
@@ -47,30 +74,6 @@ label_map = {
     "2": "scissors"
 }
 
-# 컴퓨터 손 이미지 로드 함수 - PIL 사용하여 RGB로 올바르게 로드
-def load_hand_images():
-    hands = {}
-    try:
-        # PIL을 사용하여 이미지 로드 (RGB 형식으로 올바르게 로드)
-        from PIL import Image
-        
-        hands["rock"] = Image.open("assets/images/rock.png").convert("RGBA")
-        hands["paper"] = Image.open("assets/images/paper.png").convert("RGBA")
-        hands["scissors"] = Image.open("assets/images/scissors.png").convert("RGBA")
-        hands["default"] = Image.open("assets/images/yolo_c.png").convert("RGBA")
-        hands["none"] = Image.open("assets/images/none.png").convert("RGBA")
-        
-        # 이미지 크기 조정
-        for key in hands:
-            if hands[key] is not None:
-                hands[key] = hands[key].resize((400, 400))
-                # PIL 이미지를 numpy 배열로 변환
-                hands[key] = np.array(hands[key])
-    except Exception as e:
-        print(f"손 이미지 로드 중 오류: {e}")
-    
-    return hands
-
 # 게임 결과 판정 함수
 def determine_winner(user_move, ai_move):
     if user_move == ai_move:
@@ -82,7 +85,7 @@ def determine_winner(user_move, ai_move):
     else:
         return "컴퓨터 승리!"
 
-# 웹캠 처리 함수
+# 웹캠 처리 함수 - YOLO v11 모델 활용
 def process_webcam(webcam_image):
     if webcam_image is None:
         return None, None, "웹캠을 연결해주세요."
@@ -90,16 +93,13 @@ def process_webcam(webcam_image):
     # 웹캠 이미지 좌우 반전 (거울 효과)
     frame = cv2.flip(webcam_image.copy(), 1)
     
-    # 모델 예측
-    results = model(frame)
+    # YOLO v11 모델 예측 - 향상된 신뢰도 설정
+    results = model.predict(frame, conf=0.5, iou=0.45)
     result = results[0]
     
     # 결과 처리
     boxes = result.boxes
     num_objects = len(boxes)
-    
-    # 컴퓨터 손 이미지 로드
-    hands = load_hand_images()
     
     # 손 객체 인식 결과 처리
     if num_objects == 0:
@@ -153,7 +153,7 @@ def process_webcam(webcam_image):
     
     return frame, computer_hand_img, result_text
 
-# CSS 스타일 정의
+# CSS 스타일 정의 - 그라디오 3.50.2 호환
 css = """
 .container {max-width: 1400px !important; margin: auto !important;}
 .webcam-container {display: flex !important; justify-content: center !important; align-items: center !important;}
@@ -162,8 +162,8 @@ css = """
 .webcam-feed {width: 640px !important; height: 480px !important; object-fit: contain !important;}
 """
 
-# 그라디오 인터페이스 구성
-with gr.Blocks(title="절대 이길 수 없는 가위바위보 게임", css=css) as demo:
+# 그라디오 인터페이스 구성 - 그라디오 3.50.2 문법
+with gr.Blocks(title="절대 이길 수 없는 가위바위보 게임", css=css, theme=gr.themes.Soft()) as demo:
     gr.HTML("""
     <div style="text-align: center; margin-bottom: 10px;">
         <h1>🎮 절대 이길 수 없는 가위바위보 게임</h1>
@@ -173,22 +173,24 @@ with gr.Blocks(title="절대 이길 수 없는 가위바위보 게임", css=css)
     
     with gr.Row():
         with gr.Column(scale=3, elem_classes="webcam-container"):
-            # 웹캠 입력 - 크기 증가
+            # 웹캠 입력 - 그라디오 3.50.2 문법
             webcam = gr.Image(source="webcam", streaming=True, label="게임 화면", elem_classes="webcam-feed")
         
         with gr.Column(scale=2, elem_classes="result-container"):
-            # 컴퓨터 손 이미지 - 크기 증가
+            # 컴퓨터 손 이미지
             computer_hand = gr.Image(label="컴퓨터의 선택", elem_classes="hand-image")
     
     # 결과 출력 영역
     result_text = gr.Textbox(label="게임 결과", value="손 모양을 카메라에 보여주세요.")
     
-    # 이벤트 연결
+    # 이벤트 연결 - 그라디오 3.50.2 스트리밍 문법
     webcam.stream(
-        process_webcam,
+        fn=process_webcam,
         inputs=[webcam],
         outputs=[webcam, computer_hand, result_text],
-        show_progress=False
+        show_progress=False,
+        preprocess=True,
+        postprocess=True
     )
     
     gr.HTML("""
@@ -202,6 +204,17 @@ with gr.Blocks(title="절대 이길 수 없는 가위바위보 게임", css=css)
     </div>
     """)
 
-# 그라디오 앱 실행
+# 그라디오 앱 실행 - 추가 옵션 설정
 if __name__ == "__main__":
-    demo.launch()
+    # 이미지 미리 로드 확인
+    if not load_success:
+        print("경고: 일부 이미지를 로드하지 못했습니다. 기본 이미지를 사용합니다.")
+    
+    # 그라디오 3.50.2 실행 옵션
+    demo.launch(
+        share=False,  # 공유 링크 생성 여부
+        server_name="0.0.0.0",  # 모든 IP에서 접근 가능
+        server_port=7860,  # 기본 포트
+        show_api=False,  # API 문서 표시 여부
+        favicon_path="assets/images/yolo_c.png"  # 파비콘 설정
+    )
